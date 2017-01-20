@@ -12,7 +12,7 @@ using OfficeDevPnP.Core.Utilities;
 
 namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
 {
-    internal class ObjectWebSettings : ObjectHandlerBase
+    internal class ObjectWebSettings : ObjectContentHandlerBase
     {
         public override string Name
         {
@@ -132,28 +132,13 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
                 {
 
                     try
-                    {
-                        var file = web.GetFileByServerRelativeUrl(serverRelativeUrl);
-                        string fileName = string.Empty;
-                        if (serverRelativeUrl.IndexOf("/") > -1)
-                        {
-                            fileName = serverRelativeUrl.Substring(serverRelativeUrl.LastIndexOf("/") + 1);
-                        }
-                        else
-                        {
-                            fileName = serverRelativeUrl;
-                        }
-                        web.Context.Load(file);
-                        web.Context.ExecuteQueryRetry();
-                        ClientResult<Stream> stream = file.OpenBinaryStream();
-                        web.Context.ExecuteQueryRetry();
+                    {       
+                        var fullUri = new Uri(UrlUtility.Combine(new Uri(web.Url).GetLeftPart(UriPartial.Authority), serverRelativeUrl));
+                        var folderPath = fullUri.Segments.Take(fullUri.Segments.Count() - 1).ToArray().Aggregate((i, x) => i + x).TrimEnd('/');
+                        var fileName = fullUri.Segments[fullUri.Segments.Count() - 1];
 
-                        using (Stream memStream = new MemoryStream())
-                        {
-                            CopyStream(stream.Value, memStream);
-                            memStream.Position = 0;
-                            creationInfo.FileConnector.SaveFileStream(fileName, memStream);
-                        }
+                        PersistFile(web, creationInfo, scope, folderPath, fileName);    
+                                           
                         success = true;
                     }
                     catch (ServerException ex1)

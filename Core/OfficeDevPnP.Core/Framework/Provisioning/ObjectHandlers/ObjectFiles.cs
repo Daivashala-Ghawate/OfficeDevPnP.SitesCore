@@ -77,7 +77,7 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
                             scope.LogDebug(CoreResources.Provisioning_ObjectHandlers_Files_Uploading_and_overwriting_existing_file__0_, file.Src);
                             checkedOut = CheckOutIfNeeded(web, targetFile);
 
-                            using (var stream = GetFileStream(template, file))
+                            using (var stream = GetFileStream(template, file, parser, web))
                             {
                                 targetFile = UploadFile(template, file, folder, stream);
                             }
@@ -89,7 +89,7 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
                     }
                     else
                     {
-                        using (var stream = GetFileStream(template, file))
+                        using (var stream = GetFileStream(template, file, parser, web))
                         {
                             scope.LogDebug(CoreResources.Provisioning_ObjectHandlers_Files_Uploading_file__0_, file.Src);
                             targetFile = UploadFile(template, file, folder, stream);
@@ -439,15 +439,15 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
         /// <summary>
         /// Retrieves <see cref="Stream"/> from connector. If the file name contains special characters (e.g. "%20") and cannot be retrieved, a workaround will be performed
         /// </summary>
-        private static Stream GetFileStream(ProvisioningTemplate template, Model.File file)
-        {
+        private static Stream GetFileStream(ProvisioningTemplate template, Model.File file, TokenParser parser, Web web)
+        {            
             var fileName = file.Src;
+            var fileFolder = parser.ParseString(file.Folder);
             var container = String.Empty;
-            if (fileName.Contains(@"\") || fileName.Contains(@"/"))
+            if (fileFolder.Contains(@"\") || fileFolder.Contains(@"/"))
             {
-                var tempFileName = fileName.Replace(@"/", @"\");
-                container = fileName.Substring(0, tempFileName.LastIndexOf(@"\"));
-                fileName = fileName.Substring(tempFileName.LastIndexOf(@"\") + 1);
+                string tempFileFolder = fileFolder.Replace(web.ServerRelativeUrl, String.Empty); 
+                container = tempFileFolder.Replace(@"/", @"\");
             }
 
             // add the default provided container (if any)

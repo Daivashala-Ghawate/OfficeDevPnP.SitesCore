@@ -346,7 +346,7 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.Connectors
         {
             string filePath = "";
 
-            if (container.IndexOf(@"\") > 0)
+            if (container.IndexOf(@"\") > -1)
             {
                 string[] parts = container.Split(new string[] { @"\" }, StringSplitOptions.RemoveEmptyEntries);
                 filePath = Path.Combine(GetConnectionString(), parts[0]);

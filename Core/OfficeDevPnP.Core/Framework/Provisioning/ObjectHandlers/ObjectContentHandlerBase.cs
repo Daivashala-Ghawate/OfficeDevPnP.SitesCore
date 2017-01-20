@@ -115,6 +115,13 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
 #endif
                                 }
                                 break;
+                            case "MultiChoice":
+                                var multiChoice = fieldValue.Value as Microsoft.SharePoint.Client.FieldMultiChoice[];
+                                if (multiChoice != null)
+                                {
+                                    value = Tokenize(JsonUtility.Serialize(multiChoice), web.Url);
+                                }
+                                break;                            
                             case "LookupMulti":
                                 var lookupFieldValue = fieldValue.Value as Microsoft.SharePoint.Client.FieldLookupValue[];
                                 if (lookupFieldValue != null)

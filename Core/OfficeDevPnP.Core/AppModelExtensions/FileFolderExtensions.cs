@@ -750,7 +750,7 @@ namespace Microsoft.SharePoint.Client
             {
                 throw new ArgumentNullException("folderName");
             }
-
+            folderName = folderName.Replace("%20", " ");
             folder.Context.Load(folder);
             folder.Context.Load(folder.Folders);
             folder.Context.ExecuteQueryRetry();

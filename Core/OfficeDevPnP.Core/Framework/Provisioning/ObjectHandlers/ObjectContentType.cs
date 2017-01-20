@@ -460,7 +460,8 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
 
             foreach (var ct in cts)
             {
-                if (!BuiltInContentTypeId.Contains(ct.StringId))
+                if (!ct.Sealed && !ct.Hidden && !BuiltInContentTypeId.Contains(ct.StringId))
+                 // if (!BuiltInContentTypeId.Contains(ct.StringId))
                 {
                     string ctDocumentTemplate = null;
                     if (!String.IsNullOrEmpty(ct.DocumentTemplate))

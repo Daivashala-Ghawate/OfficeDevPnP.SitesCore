@@ -24,7 +24,12 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
         private const string HTML_PAGE_LAYOUT_CONTENT_TYPE_ID = "0x01010007FF3E057FA8AB4AA42FCB67B453FFC100E214EEE741181F4E9F7ACC43278EE8110003D357F861E29844953D5CAA1D4D8A3B";
         private const string MASTER_PAGE_CONTENT_TYPE_ID = "0x010105";
         private const string HTML_MASTER_PAGE_CONTENT_TYPE_ID =    "0x0101000F1C8B9E0EB4BE489F09807B2C53288F0054AD6EF48B9F7B45A142F8173F171BD10003D357F861E29844953D5CAA1D4D8A3A";
-        private const string ASP_NET_MASTER_PAGE_CONTENT_TYPE_ID = "0x0101000F1C8B9E0EB4BE489F09807B2C53288F0054AD6EF48B9F7B45A142F8173F171BD1";
+        private const string ASP_NET_MASTER_PAGE_CONTENT_TYPE_ID = "0x0101000F1C8B9E0EB4BE489F09807B2C53288F0054AD6EF48B9F7B45A142F8173F171BD1";        
+        private const string HTML_CONTROL_DISPLAY_TEMPLATE_CONTENT_TYPE_ID = "0x0101002039C03B61C64EC4A04F5361F385106601";
+        private const string HTML_GROUP_DISPLAY_TEMPLATE_CONTENT_TYPE_ID = "0x0101002039C03B61C64EC4A04F5361F385106602";
+        private const string HTML_ITEM_DISPLAY_TEMPLATE_CONTENT_TYPE_ID = "0x0101002039C03B61C64EC4A04F5361F385106603";
+        private const string HTML_FILTER_DISPLAY_TEMPLATE_CONTENT_TYPE_ID = "0x0101002039C03B61C64EC4A04F5361F385106604";
+
         public override string Name
         {
             get { return "Publishing"; }
@@ -98,7 +103,11 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
                         if (listItem.ContentType.StringId.StartsWith(MASTER_PAGE_CONTENT_TYPE_ID) ||
                             listItem.ContentType.StringId.StartsWith(PAGE_LAYOUT_CONTENT_TYPE_ID) ||
                             listItem.ContentType.StringId.StartsWith(ASP_NET_MASTER_PAGE_CONTENT_TYPE_ID) ||
-                            listItem.ContentType.StringId.StartsWith(HTML_PAGE_LAYOUT_CONTENT_TYPE_ID))
+                            listItem.ContentType.StringId.StartsWith(HTML_PAGE_LAYOUT_CONTENT_TYPE_ID) ||
+                            listItem.ContentType.StringId.StartsWith(HTML_CONTROL_DISPLAY_TEMPLATE_CONTENT_TYPE_ID) ||
+                            listItem.ContentType.StringId.StartsWith(HTML_GROUP_DISPLAY_TEMPLATE_CONTENT_TYPE_ID) || 
+                            listItem.ContentType.StringId.StartsWith(HTML_ITEM_DISPLAY_TEMPLATE_CONTENT_TYPE_ID) ||
+                            listItem.ContentType.StringId.StartsWith(HTML_FILTER_DISPLAY_TEMPLATE_CONTENT_TYPE_ID))
                         {
                             // Skip any .ASPX or .MASTER file related to an .HTML designer file
                             if ((file.Name.EndsWith(".aspx", StringComparison.InvariantCultureIgnoreCase)

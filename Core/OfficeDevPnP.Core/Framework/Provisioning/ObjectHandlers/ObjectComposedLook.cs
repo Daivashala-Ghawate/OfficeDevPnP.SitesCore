@@ -6,6 +6,8 @@ using System.IO;
 using OfficeDevPnP.Core.Diagnostics;
 using System.Text.RegularExpressions;
 using Newtonsoft.Json;
+using System.Linq;
+using OfficeDevPnP.Core.Utilities;
 
 namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
 {
@@ -179,7 +181,7 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
         {
 
             var theme = web.GetCurrentComposedLook();
-
+                        
             if (theme != null)
             {
                 if (creationInfo != null)
@@ -206,7 +208,7 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
                         // Let's create a SharePoint connector since our files anyhow are in SharePoint at this moment
                         // Download the theme/branding specific files
                         DownLoadFile(spConnector, spConnectorRoot, creationInfo.FileConnector, web.Url, theme.BackgroundImage, scope);
-                        DownLoadFile(spConnector, spConnectorRoot, creationInfo.FileConnector, web.Url, theme.Theme, scope);
+                        DownLoadFile(spConnector, spConnectorRoot, creationInfo.FileConnector, web.Url, theme.Theme, scope);                        
                         DownLoadFile(spConnector, spConnectorRoot, creationInfo.FileConnector, web.Url, theme.Font, scope);
                     }
 
@@ -258,8 +260,7 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
             }
 
             scope.LogDebug(CoreResources.Provisioning_ObjectHandlers_ComposedLooks_DownLoadFile_Downloading_asset___0_, asset);
-            ;
-
+            
             SharePointConnector readerToUse;
             Model.File f = GetComposedLookFile(asset);
 
@@ -278,15 +279,19 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
             else
             {
                 readerToUse = reader;
-            }
+            }            
+
+            String container = f.Folder.Trim('/').Replace("%20", " ").Replace("/", "\\");
+            String persistenceFileName = f.Src.Replace("%20", " ");
 
             using (Stream s = readerToUse.GetFileStream(f.Src, f.Folder))
             {
                 if (s != null)
                 {
-                    writer.SaveFileStream(f.Src, s);
+                    writer.SaveFileStream(
+                        persistenceFileName, container, s);
                 }
-            }
+            }            
         }
 
         private String FixFileName(string originalFileName)

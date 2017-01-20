@@ -1615,7 +1615,7 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
 
             foreach (var ct in siteList.ContentTypes)
             {
-                web.Context.Load(ct, c => c.Parent);
+                web.Context.Load(ct, c => c.Parent, c => c.Sealed, c => c.Hidden);
                 web.Context.ExecuteQueryRetry();
 
                 if (ct.Parent != null)
@@ -1627,10 +1627,7 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
 
                     // Exclude System Content Type to prevent getting exception during import
                     if (!ct.Parent.StringId.Equals(BuiltInContentTypeId.System))
-                    {
-                        list.ContentTypeBindings.Add(new ContentTypeBinding { ContentTypeId = ct.Parent.StringId, Default = count == 0 });
-                    }
-
+                        list.ContentTypeBindings.Add(new ContentTypeBinding { ContentTypeId = ct.Parent.StringId, Default = count == 0 });                
                     //}
                 }
                 else
@@ -1679,12 +1676,9 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
                 if (siteColumn != null)
                 {
                     var addField = true;
-                    if (siteList.ContentTypesEnabled && contentTypeFields.FirstOrDefault(c => c.Id == field.Id) == null)
+                    if (siteList.ContentTypesEnabled && contentTypeFields.Any(c => c.Id == field.Id))
                     {
-                        if (contentTypeFields.FirstOrDefault(c => c.Id == field.Id) == null)
-                        {
-                            addField = false;
-                        }
+                        addField = false;
                     }
 
                     if (siteColumn.DefaultValue != field.DefaultValue)

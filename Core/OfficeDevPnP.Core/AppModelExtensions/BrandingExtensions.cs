@@ -911,7 +911,8 @@ namespace Microsoft.SharePoint.Client
                             }
 
                             // Exclude current from this comparison as otherwise we'll never detect the actual theme name
-                            if (!name.Equals(currentLookName, StringComparison.InvariantCultureIgnoreCase) && i == 0)
+                            if (i == 0 && (!name.Equals(currentLookName, StringComparison.InvariantCultureIgnoreCase)) ||
+                                    i > 0 && name.Equals(currentLookName, StringComparison.InvariantCultureIgnoreCase))
                             {
                                 // Note: do not take in account the ImageUrl field as this will point to a copied image in case of a sub site
                                 if (IsMatchingTheme(theme, masterPageUrl, themeUrl, fontUrl))

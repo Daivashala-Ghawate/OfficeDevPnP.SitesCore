@@ -46,94 +46,122 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
                 }
                 var welcomePageUrl = UrlUtility.Combine(web.ServerRelativeUrl, homepageUrl);
 
-                var file = web.GetFileByServerRelativeUrl(welcomePageUrl);
-                try
+                List pagesLibrary = web.GetPagesLibrary();
+                var items = pagesLibrary.GetItems(CamlQuery.CreateAllItemsQuery());
+                web.Context.Load(items, i => i.Include(it => it.DisplayName, it => it.File));
+                web.Context.ExecuteQuery();
+
+                foreach (ListItem listItem in items)
                 {
-                    var listItem = file.EnsureProperty(f => f.ListItemAllFields);
-                    if (listItem != null)
+                    try
                     {
-                        if (listItem.FieldValues.ContainsKey("WikiField") && listItem.FieldValues["WikiField"] != null)
+                        //var listItem = file.EnsureProperty(f => f.ListItemAllFields);
+                        if (listItem != null)
                         {
-                            // Wiki page
-                            var fullUri = new Uri(UrlUtility.Combine(web.Url, web.RootFolder.WelcomePage));
-
-                            var folderPath = fullUri.Segments.Take(fullUri.Segments.Count() - 1).ToArray().Aggregate((i, x) => i + x).TrimEnd('/');
-                            var fileName = fullUri.Segments[fullUri.Segments.Count() - 1];
-
-                            var homeFile = web.GetFileByServerRelativeUrl(welcomePageUrl);
-
-                            LimitedWebPartManager limitedWPManager =
-                                homeFile.GetLimitedWebPartManager(PersonalizationScope.Shared);
-
-                            web.Context.Load(limitedWPManager);
-
-                            var webParts = web.GetWebParts(welcomePageUrl);
-
-                            var page = new Page()
+                            File file = listItem.File;
+                            if (listItem.FieldValues.ContainsKey("WikiField") && listItem.FieldValues["WikiField"] != null)
                             {
-                                Layout = WikiPageLayout.Custom,
-                                Overwrite = true,
-                                Url = Tokenize(fullUri.PathAndQuery, web.Url),
-                            };
-                            var pageContents = listItem.FieldValues["WikiField"].ToString();
+                                // Wiki page
+                                var fullUri = new Uri(UrlUtility.Combine(new Uri(web.Url).GetLeftPart(UriPartial.Authority), file.ServerRelativeUrl));
+                                var folderPath = fullUri.Segments.Take(fullUri.Segments.Count() - 1).ToArray().Aggregate((i, x) => i + x).TrimEnd('/');
 
-                            Regex regexClientIds = new Regex(@"id=\""div_(?<ControlId>(\w|\-)+)");
-                            if (regexClientIds.IsMatch(pageContents))
-                            {
-                                foreach (Match webPartMatch in regexClientIds.Matches(pageContents))
+                                LimitedWebPartManager limitedWPManager =  file.GetLimitedWebPartManager(PersonalizationScope.Shared);
+
+                                web.Context.Load(limitedWPManager);
+
+                                var webParts = web.GetWebParts(file.ServerRelativeUrl);
+
+                                var page = new Page()
                                 {
-                                    String serverSideControlId = webPartMatch.Groups["ControlId"].Value;
+                                    Layout = WikiPageLayout.Custom,
+                                    Overwrite = true,
+                                    Url = Tokenize(fullUri.PathAndQuery, web.Url),
+                                };
+                                var pageContents = listItem.FieldValues["WikiField"].ToString();
 
-                                    try
+                                Regex regexClientIds = new Regex(@"id=\""div_(?<ControlId>(\w|\-)+)");
+                                if (regexClientIds.IsMatch(pageContents))
+                                {
+                                    foreach (Match webPartMatch in regexClientIds.Matches(pageContents))
                                     {
-                                        String serverSideControlIdToSearchFor = String.Format("g_{0}",
-                                            serverSideControlId.Replace("-", "_"));
+                                        String serverSideControlId = webPartMatch.Groups["ControlId"].Value;
 
-                                        WebPartDefinition webPart = limitedWPManager.WebParts.GetByControlId(serverSideControlIdToSearchFor);
-                                        web.Context.Load(webPart,
-                                            wp => wp.Id,
-                                            wp => wp.WebPart.Title,
-                                            wp => wp.WebPart.ZoneIndex
-                                            );
-                                        web.Context.ExecuteQueryRetry();
-
-                                        var webPartxml = TokenizeWebPartXml(web, web.GetWebPartXml(webPart.Id, welcomePageUrl));
-
-                                        page.WebParts.Add(new Model.WebPart()
+                                        try
                                         {
-                                            Title = webPart.WebPart.Title,
-                                            Contents = webPartxml,
-                                            Order = (uint)webPart.WebPart.ZoneIndex,
-                                            Row = 1, // By default we will create a onecolumn layout, add the webpart to it, and later replace the wikifield on the page to position the webparts correctly.
-                                            Column = 1 // By default we will create a onecolumn layout, add the webpart to it, and later replace the wikifield on the page to position the webparts correctly.
-                                        });
+                                            String serverSideControlIdToSearchFor = String.Format("g_{0}",
+                                                serverSideControlId.Replace("-", "_"));
 
-                                        pageContents = Regex.Replace(pageContents, serverSideControlId, string.Format("{{webpartid:{0}}}", webPart.WebPart.Title), RegexOptions.IgnoreCase);
-                                    }
-                                    catch (ServerException)
-                                    {
-                                        scope.LogWarning("Found a WebPart ID which is not available on the server-side. ID: {0}", serverSideControlId);
+                                            WebPartDefinition webPart = limitedWPManager.WebParts.GetByControlId(serverSideControlIdToSearchFor);
+                                            web.Context.Load(webPart,
+                                                wp => wp.Id,
+                                                wp => wp.WebPart.Title,
+                                                wp => wp.WebPart.ZoneIndex
+                                                );
+                                            web.Context.ExecuteQueryRetry();
+
+                                            var webPartxml = TokenizeWebPartXml(web, web.GetWebPartXml(webPart.Id, file.ServerRelativeUrl));
+
+                                            page.WebParts.Add(new Model.WebPart()
+                                            {
+                                                Title = webPart.WebPart.Title,
+                                                Contents = webPartxml,
+                                                Order = (uint)webPart.WebPart.ZoneIndex,
+                                                Row = 1, // By default we will create a onecolumn layout, add the webpart to it, and later replace the wikifield on the page to position the webparts correctly.
+                                                Column = 1 // By default we will create a onecolumn layout, add the webpart to it, and later replace the wikifield on the page to position the webparts correctly.
+                                            });
+
+                                            pageContents = Regex.Replace(pageContents, serverSideControlId, string.Format("{{webpartid:{0}}}", webPart.WebPart.Title), RegexOptions.IgnoreCase);
+                                        }
+                                        catch (ServerException)
+                                        {
+                                            scope.LogWarning("Found a WebPart ID which is not available on the server-side. ID: {0}", serverSideControlId);
+                                        }
                                     }
                                 }
+
+                                page.Fields.Add("WikiField", pageContents);
+                                template.Pages.Add(page);
+
+                                // Set the homepage
+                                if (template.WebSettings == null)
+                                {
+                                    template.WebSettings = new WebSettings();
+                                }
+                                template.WebSettings.WelcomePage = homepageUrl;
+
+
                             }
-
-                            page.Fields.Add("WikiField", pageContents);
-                            template.Pages.Add(page);
-
-                            // Set the homepage
-                            if (template.WebSettings == null)
+                            else
                             {
-                                template.WebSettings = new WebSettings();
+                                if (web.Context.HasMinimalServerLibraryVersion(Constants.MINIMUMZONEIDREQUIREDSERVERVERSION))
+                                {
+                                    // Not a wikipage
+                                    template = GetFileContents(web, template, file.ServerRelativeUrl, creationInfo, scope);
+                                    if (template.WebSettings == null)
+                                    {
+                                        template.WebSettings = new WebSettings();
+                                    }
+                                    template.WebSettings.WelcomePage = homepageUrl;
+                                }
+                                else
+                                {
+                                    WriteWarning(string.Format("Page content export requires a server version that is newer than the current server. Server version is {0}, minimal required is {1}", web.Context.ServerLibraryVersion, Constants.MINIMUMZONEIDREQUIREDSERVERVERSION), ProvisioningMessageType.Warning);
+                                    scope.LogWarning("Page content export requires a server version that is newer than the current server. Server version is {0}, minimal required is {1}", web.Context.ServerLibraryVersion, Constants.MINIMUMZONEIDREQUIREDSERVERVERSION);
+                                }
                             }
-                            template.WebSettings.WelcomePage = homepageUrl;
-
-
+                        }
+                    }
+                    catch (ServerException ex)
+                    {
+                        if (ex.ServerErrorCode != -2146232832)
+                        {
+                            throw;
                         }
                         else
                         {
                             if (web.Context.HasMinimalServerLibraryVersion(Constants.MINIMUMZONEIDREQUIREDSERVERVERSION))
                             {
-                                // Not a wikipage
+                                // Page does not belong to a list, extract the file as is
                                 template = GetFileContents(web, template, welcomePageUrl, creationInfo, scope);
                                 if (template.WebSettings == null)
                                 {
@@ -149,31 +177,6 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
                         }
                     }
                 }
-                catch (ServerException ex)
-                {
-                    if (ex.ServerErrorCode != -2146232832)
-                    {
-                        throw;
-                    }
-                    else
-                    {
-                        if (web.Context.HasMinimalServerLibraryVersion(Constants.MINIMUMZONEIDREQUIREDSERVERVERSION))
-                        {
-                            // Page does not belong to a list, extract the file as is
-                            template = GetFileContents(web, template, welcomePageUrl, creationInfo, scope);
-                            if (template.WebSettings == null)
-                            {
-                                template.WebSettings = new WebSettings();
-                            }
-                            template.WebSettings.WelcomePage = homepageUrl;
-                        }
-                        else
-                        {
-                            WriteWarning(string.Format("Page content export requires a server version that is newer than the current server. Server version is {0}, minimal required is {1}", web.Context.ServerLibraryVersion, Constants.MINIMUMZONEIDREQUIREDSERVERVERSION), ProvisioningMessageType.Warning);
-                            scope.LogWarning("Page content export requires a server version that is newer than the current server. Server version is {0}, minimal required is {1}", web.Context.ServerLibraryVersion, Constants.MINIMUMZONEIDREQUIREDSERVERVERSION);
-                        }
-                    }
-                }
 
                 // If a base template is specified then use that one to "cleanup" the generated template model
                 if (creationInfo.BaseTemplate != null)
@@ -184,22 +187,16 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
             return template;
         }
 
-        private ProvisioningTemplate GetFileContents(Web web, ProvisioningTemplate template, string welcomePageUrl, ProvisioningTemplateCreationInformation creationInfo, PnPMonitoredScope scope)
+        private ProvisioningTemplate GetFileContents(Web web, ProvisioningTemplate template, string pageUrl, ProvisioningTemplateCreationInformation creationInfo, PnPMonitoredScope scope)
         {
-            var homepageUrl = web.RootFolder.WelcomePage;
-            if (string.IsNullOrEmpty(homepageUrl))
-            {
-                homepageUrl = "Default.aspx";
-            }
-
-            var fullUri = new Uri(UrlUtility.Combine(web.Url, homepageUrl));
+            var fullUri = new Uri(UrlUtility.Combine(new Uri(web.Url).GetLeftPart(UriPartial.Authority), pageUrl));
 
             var folderPath = fullUri.Segments.Take(fullUri.Segments.Count() - 1).ToArray().Aggregate((i, x) => i + x).TrimEnd('/');
             var fileName = fullUri.Segments[fullUri.Segments.Count() - 1];
 
-            var webParts = web.GetWebParts(welcomePageUrl);
+            var webParts = web.GetWebParts(pageUrl);
 
-            var file = web.GetFileByServerRelativeUrl(welcomePageUrl);
+            var file = web.GetFileByServerRelativeUrl(pageUrl);
 
             var homeFile = new Model.File()
             {
@@ -215,7 +212,7 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
             // Add WebParts to file
             foreach (var webPart in webParts)
             {
-                var webPartxml = TokenizeWebPartXml(web, web.GetWebPartXml(webPart.Id, welcomePageUrl));
+                var webPartxml = TokenizeWebPartXml(web, web.GetWebPartXml(webPart.Id, pageUrl));
 
                 Model.WebPart newWp = new Model.WebPart()
                 {
@@ -256,9 +253,9 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
             }
 
             //some webparts already contains the site URL using ~sitecollection token (i.e: CQWP)
-            xml = Regex.Replace(xml, "\"~sitecollection/(.)*\"", "\"{site}\"", RegexOptions.IgnoreCase);
-            xml = Regex.Replace(xml, "'~sitecollection/(.)*'", "'{site}'", RegexOptions.IgnoreCase);
-            xml = Regex.Replace(xml, ">~sitecollection/(.)*<", ">{site}<", RegexOptions.IgnoreCase);
+            xml = Regex.Replace(xml, "\"~sitecollection", "\"{site}", RegexOptions.IgnoreCase);
+            xml = Regex.Replace(xml, "'~sitecollection", "'{site}", RegexOptions.IgnoreCase);
+            xml = Regex.Replace(xml, ">~sitecollection", ">{site}", RegexOptions.IgnoreCase);
 
             xml = Regex.Replace(xml, web.Id.ToString(), "{siteid}", RegexOptions.IgnoreCase);
             xml = Regex.Replace(xml, "(\"" + web.ServerRelativeUrl + ")(?!&)", "\"{site}", RegexOptions.IgnoreCase);
