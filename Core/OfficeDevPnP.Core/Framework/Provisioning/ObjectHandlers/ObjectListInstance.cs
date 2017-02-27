@@ -64,7 +64,7 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
                                 if (!found)
                                 {
                                     scope.LogError("Referenced content type {0} not available in site or in template", ct.ContentTypeId);
-                                    throw new Exception(string.Format("Referenced content type {0} not available in site or in template", ct.ContentTypeId));
+                                    throw new Exception($"Referenced content type {ct.ContentTypeId} not available in site or in template");
                                 }
                             }
                         }
@@ -400,7 +400,7 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
                 }
 
                 // Default view
-                var viewDefault = viewElement.Attribute("DefaultView") != null && Boolean.Parse(viewElement.Attribute("DefaultView").Value);
+                var viewDefault = viewElement.Attribute("DefaultView") != null && bool.Parse(viewElement.Attribute("DefaultView").Value);
 
                 // Row limit
                 var viewPaged = true;
@@ -445,9 +445,9 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
                 }
 
                 var createdView = createdList.Views.Add(viewCI);
-                web.Context.Load(createdView, v => v.Scope, v => v.JSLink, v => v.Title);
+                createdView.EnsureProperties(v => v.Scope,v => v.JSLink, v => v.Title, v => v.Aggregations, v => v.MobileView, v => v.MobileDefaultView);
                 web.Context.ExecuteQueryRetry();
-
+                
                 if (urlHasValue)
                 {
                     //restore original title 
@@ -494,6 +494,43 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
                     createdView.Update();
                 }
 
+                // MobileView
+                var mobileView = viewElement.Attribute("MobileView") != null && bool.Parse(viewElement.Attribute("MobileView").Value);
+                if (mobileView)
+                {
+                    createdView.MobileView = mobileView;
+                    createdView.Update();
+                }
+
+                // MobileDefaultView
+                var mobileDefaultView = viewElement.Attribute("MobileDefaultView") != null && bool.Parse(viewElement.Attribute("MobileDefaultView").Value);
+                if (mobileDefaultView)
+                {
+                    createdView.MobileDefaultView = mobileDefaultView;
+                    createdView.Update();
+                }
+
+                // Aggregations
+                var aggregationsElement = viewElement.Descendants("Aggregations").FirstOrDefault();
+                if (aggregationsElement != null)
+                {
+                    if (aggregationsElement.HasElements)
+                    {
+                        var fieldRefString = "";
+                        var fieldRefs = aggregationsElement.Descendants("FieldRef");
+                        foreach (var fieldRef in fieldRefs)
+                        {
+                            fieldRefString += fieldRef.ToString();
+                        }
+                        if (createdView.Aggregations != fieldRefString)
+                        {
+                            createdView.Aggregations = fieldRefString;
+                            createdView.Update();
+                        }
+                    }
+                }
+
+                
                 // JSLink
                 var jslinkElement = viewElement.Descendants("JSLink").FirstOrDefault();
                 if (jslinkElement != null)
@@ -508,6 +545,10 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
 
                 createdList.Update();
                 web.Context.ExecuteQueryRetry();
+
+                // Add ListViewId token parser
+                createdView.EnsureProperty(v => v.Id);
+                parser.AddToken(new ListViewIdToken(web, createdList.Title, createdView.Title, createdView.Id));
 
 #if !SP2013
                 // Localize view title
@@ -660,7 +701,7 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
                 // The field Xml was found invalid
                 var tokenString = parser.GetLeftOverTokens(originalFieldXml).Aggregate(String.Empty, (acc, i) => acc + " " + i);
                 scope.LogError("The field was found invalid: {0}", tokenString);
-                throw new Exception(string.Format("The field was found invalid: {0}", tokenString));
+                throw new Exception($"The field was found invalid: {tokenString}");
             }
             return field;
         }
@@ -755,7 +796,7 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
                         // The field Xml was found invalid
                         var tokenString = parser.GetLeftOverTokens(originalFieldXml).Aggregate(String.Empty, (acc, i) => acc + " " + i);
                         scope.LogError("The field was found invalid: {0}", tokenString);
-                        throw new Exception(string.Format("The field was found invalid: {0}", tokenString));
+                        throw new Exception($"The field was found invalid: {tokenString}");
                     }
                 }
                 else
@@ -1044,11 +1085,17 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
 
                 if (existingList.ContentTypesEnabled)
                 {
+                 
                     // Check if we need to add a content type
 
                     var existingContentTypes = existingList.ContentTypes;
                     web.Context.Load(existingContentTypes, cts => cts.Include(ct => ct.StringId));
                     web.Context.ExecuteQueryRetry();
+
+                    if (templateList.RemoveExistingContentTypes && existingContentTypes.Count > 0)
+                    {
+                        WriteWarning($"You specified to remove existing content types for the list  with url '{existingList.RootFolder.ServerRelativeUrl}'. We found a list with the same url in the site. In case of a list update we cannot remove existing content types as they can be in use by existing list items and/or documents.",ProvisioningMessageType.Warning);
+                    }
 
                     var bindingsToAdd = templateList.ContentTypeBindings.Where(ctb => existingContentTypes.All(ct => !ctb.ContentTypeId.Equals(ct.StringId, StringComparison.InvariantCultureIgnoreCase))).ToList();
                     var defaultCtBinding = templateList.ContentTypeBindings.FirstOrDefault(ctb => ctb.Default == true);
@@ -1527,13 +1574,14 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
                     if (creationInfo.PersistMultiLanguageResources)
                     {
 #if !SP2013
-                        if (UserResourceExtensions.PersistResourceValue(siteList.TitleResource, string.Format("List_{0}_Title", siteList.Title.Replace(" ", "_")), template, creationInfo))
+                        var escapedListTitle = siteList.Title.Replace(" ", "_");
+                        if (UserResourceExtensions.PersistResourceValue(siteList.TitleResource, $"List_{escapedListTitle}_Title", template, creationInfo))
                         {
-                            list.Title = string.Format("{{res:List_{0}_Title}}", siteList.Title.Replace(" ", "_"));
+                            list.Title = $"{{res:List_{escapedListTitle}_Title}}";
                         }
-                        if (UserResourceExtensions.PersistResourceValue(siteList.DescriptionResource, string.Format("List_{0}_Description", siteList.Title.Replace(" ", "_")), template, creationInfo))
+                        if (UserResourceExtensions.PersistResourceValue(siteList.DescriptionResource, $"List_{escapedListTitle}_Description", template, creationInfo))
                         {
-                            list.Description = string.Format("{{res:List_{0}_Description}}", siteList.Title.Replace(" ", "_"));
+                            list.Description = $"{{res:List_{escapedListTitle}_Description}}";
                         }
 #endif
                     }
@@ -1574,7 +1622,7 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
                     if (logCTWarning)
                     {
                         scope.LogWarning("You are extracting a template from a subweb. List '{0}' refers to content types. Content types are not exported when extracting a template from a subweb", siteList.Title);
-                        WriteWarning(string.Format("You are extracting a template from a subweb. List '{0}' refers to content types. Content types are not exported when extracting a template from a subweb", siteList.Title), ProvisioningMessageType.Warning);
+                        WriteWarning($"You are extracting a template from a subweb. List '{siteList.Title}' refers to content types. Content types are not exported when extracting a template from a subweb", ProvisioningMessageType.Warning);
                     }
                 }
 
@@ -1767,15 +1815,16 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
                     if (creationInfo.PersistMultiLanguageResources)
                     {
 #if !SP2013
-                        if (UserResourceExtensions.PersistResourceValue(field.TitleResource, string.Format("Field_{0}_DisplayName", field.Title.Replace(" ", "_")), template, creationInfo))
+                        var escapedFieldTitle = field.Title.Replace(" ", "_");
+                        if (UserResourceExtensions.PersistResourceValue(field.TitleResource, $"Field_{escapedFieldTitle}_DisplayName", template, creationInfo))
                         {
-                            var fieldTitle = string.Format("{{res:Field_{0}_DisplayName}}", field.Title.Replace(" ", "_"));
+                            var fieldTitle = $"{{res:Field_{escapedFieldTitle}_DisplayName}}";
                             fieldElement.SetAttributeValue("DisplayName", fieldTitle);
 
                         }
-                        if (UserResourceExtensions.PersistResourceValue(field.DescriptionResource, string.Format("Field_{0}_Description", field.Title.Replace(" ", "_")), template, creationInfo))
+                        if (UserResourceExtensions.PersistResourceValue(field.DescriptionResource, $"Field_{escapedFieldTitle}_Description", template, creationInfo))
                         {
-                            var fieldDescription = string.Format("{{res:Field_{0}_Description}}", field.Title.Replace(" ", "_"));
+                            var fieldDescription = $"{{res:Field_{escapedFieldTitle}_Description}}";
                             fieldElement.SetAttributeValue("Description", fieldDescription);
                         }
 
@@ -1794,7 +1843,7 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
                         {
                             var sourceList = lists.AsEnumerable().Where(l => l.Id == listIdValue).FirstOrDefault();
                             if (sourceList != null)
-                                fieldElement.Attribute("List").SetValue(String.Format("{{listid:{0}}}", sourceList.Title));
+                                fieldElement.Attribute("List").SetValue($"{{listid:{sourceList.Title}}}");
                         }
 
                         list.Fields.Add(new Model.Field { SchemaXml = fieldElement.ToString() });
@@ -1855,15 +1904,15 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
                     var listKey = siteList.Title.Replace(" ", "_");
                     var resourceKey = userCustomAction.Name.Replace(" ", "_");
 
-                    if (UserResourceExtensions.PersistResourceValue(userCustomAction.TitleResource, string.Format("List_{0}_CustomAction_{1}_Title", listKey, resourceKey), template, creationInfo))
+                    if (UserResourceExtensions.PersistResourceValue(userCustomAction.TitleResource, $"List_{listKey}_CustomAction_{resourceKey}_Title", template, creationInfo))
                     {
-                        var customActionTitle = string.Format("{{res:List_{0}_CustomAction_{1}_Title}}", listKey, resourceKey);
+                        var customActionTitle = $"{{res:List_{listKey}_CustomAction_{resourceKey}_Title}}";
                         customAction.Title = customActionTitle;
 
                     }
-                    if (UserResourceExtensions.PersistResourceValue(userCustomAction.DescriptionResource, string.Format("List_{0}_CustomAction_{1}_Description", listKey, resourceKey), template, creationInfo))
+                    if (UserResourceExtensions.PersistResourceValue(userCustomAction.DescriptionResource, $"List_{listKey}_CustomAction_{resourceKey}_Description", template, creationInfo))
                     {
-                        var customActionDescription = string.Format("{{res:List_{0}_CustomAction_{1}_Description}}", listKey, resourceKey);
+                        var customActionDescription = $"{{res:List_{listKey}_CustomAction_{resourceKey}_Description}}";
                         customAction.Description = customActionDescription;
                     }
                 }
@@ -1879,7 +1928,7 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
         {
             foreach (var list in lists)
             {
-                schemaXml = Regex.Replace(schemaXml, list.Id.ToString(), string.Format("{{listid:{0}}}", list.Title), RegexOptions.IgnoreCase);
+                schemaXml = Regex.Replace(schemaXml, list.Id.ToString(), $"{{listid:{list.Title}}}", RegexOptions.IgnoreCase);
             }
 
             return schemaXml;

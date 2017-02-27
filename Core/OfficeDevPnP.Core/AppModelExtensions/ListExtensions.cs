@@ -281,8 +281,8 @@ namespace Microsoft.SharePoint.Client
             if (string.IsNullOrEmpty(contentTypeName))
             {
                 throw (contentTypeName == null)
-                  ? new ArgumentNullException("contentTypeName")
-                  : new ArgumentException(CoreResources.Exception_Message_EmptyString_Arg, "contentTypeName");
+                  ? new ArgumentNullException(nameof(contentTypeName))
+                  : new ArgumentException(CoreResources.Exception_Message_EmptyString_Arg, nameof(contentTypeName));
             }
 
             var _cts = list.ContentTypes;
@@ -314,8 +314,8 @@ namespace Microsoft.SharePoint.Client
             if (string.IsNullOrEmpty(listName))
             {
                 throw (listName == null)
-                  ? new ArgumentNullException("listName")
-                  : new ArgumentException(CoreResources.Exception_Message_EmptyString_Arg, "listName");
+                  ? new ArgumentNullException(nameof(listName))
+                  : new ArgumentException(CoreResources.Exception_Message_EmptyString_Arg, nameof(listName));
             }
             // Call actual implementation
             return CreateListInternal(web, null, (int)ListTemplateType.DocumentLibrary, listName, enableVersioning, urlPath: urlPath);
@@ -334,8 +334,8 @@ namespace Microsoft.SharePoint.Client
             if (string.IsNullOrEmpty(listTitle))
             {
                 throw (listTitle == null)
-                  ? new ArgumentNullException("listTitle")
-                  : new ArgumentException(CoreResources.Exception_Message_EmptyString_Arg, "listTitle");
+                  ? new ArgumentNullException(nameof(listTitle))
+                  : new ArgumentException(CoreResources.Exception_Message_EmptyString_Arg, nameof(listTitle));
             }
 
             var lists = web.Lists;
@@ -484,8 +484,8 @@ namespace Microsoft.SharePoint.Client
             if (string.IsNullOrEmpty(listName))
             {
                 throw (listName == null)
-                  ? new ArgumentNullException("listName")
-                  : new ArgumentException(CoreResources.Exception_Message_EmptyString_Arg, "listName");
+                  ? new ArgumentNullException(nameof(listName))
+                  : new ArgumentException(CoreResources.Exception_Message_EmptyString_Arg, nameof(listName));
             }
 
             List listToUpdate = web.Lists.GetByTitle(listName);
@@ -621,26 +621,26 @@ namespace Microsoft.SharePoint.Client
             if (string.IsNullOrEmpty(listTitle))
             {
                 throw (listTitle == null)
-                  ? new ArgumentNullException("listTitle")
-                  : new ArgumentException(CoreResources.Exception_Message_EmptyString_Arg, "listTitle");
+                  ? new ArgumentNullException(nameof(listTitle))
+                  : new ArgumentException(CoreResources.Exception_Message_EmptyString_Arg, nameof(listTitle));
             }
             if (string.IsNullOrEmpty(cultureName))
             {
                 throw (cultureName == null)
-                  ? new ArgumentNullException("cultureName")
-                  : new ArgumentException(CoreResources.Exception_Message_EmptyString_Arg, "cultureName");
+                  ? new ArgumentNullException(nameof(cultureName))
+                  : new ArgumentException(CoreResources.Exception_Message_EmptyString_Arg, nameof(cultureName));
             }
             if (string.IsNullOrEmpty(titleResource))
             {
                 throw (titleResource == null)
-                  ? new ArgumentNullException("titleResource")
-                  : new ArgumentException(CoreResources.Exception_Message_EmptyString_Arg, "titleResource");
+                  ? new ArgumentNullException(nameof(titleResource))
+                  : new ArgumentException(CoreResources.Exception_Message_EmptyString_Arg, nameof(titleResource));
             }
             if (string.IsNullOrEmpty(descriptionResource))
             {
                 throw (descriptionResource == null)
-                  ? new ArgumentNullException("descriptionResource")
-                  : new ArgumentException(CoreResources.Exception_Message_EmptyString_Arg, "descriptionResource");
+                  ? new ArgumentNullException(nameof(descriptionResource))
+                  : new ArgumentException(CoreResources.Exception_Message_EmptyString_Arg, nameof(descriptionResource));
             }
 
             List list = web.GetList(listTitle);
@@ -769,7 +769,7 @@ namespace Microsoft.SharePoint.Client
             int language = (int)web.EnsureProperty(w => w.Language);
 
             var result = Utilities.Utility.GetLocalizedString(context, "$Resources:List_Pages_UrlName", "cmscore", language);
-            context.ExecuteQueryRetry();            
+            context.ExecuteQueryRetry();
             string pagesLibraryName = new Regex(@"['´`]").Replace(result.Value, "");
 
             if (string.IsNullOrEmpty(pagesLibraryName))
@@ -1284,7 +1284,7 @@ namespace Microsoft.SharePoint.Client
                                 var field = list.Fields.GetByInternalNameOrTitle(fieldName);
                                 clientContext.Load(field);
                                 clientContext.ExecuteQueryRetry();
-                                if (field.FieldTypeKind == FieldType.Text || field.FieldTypeKind == FieldType.Choice ||field.FieldTypeKind == FieldType.MultiChoice)
+                                if (field.FieldTypeKind == FieldType.Text || field.FieldTypeKind == FieldType.Choice || field.FieldTypeKind == FieldType.MultiChoice)
                                 {
                                     var textValue = defaultValue.Value;
                                     var defaultColumnTextValue = new DefaultColumnTextValue()
@@ -1363,6 +1363,13 @@ namespace Microsoft.SharePoint.Client
         /// <param name="list"></param>
         public static void ReIndexList(this List list)
         {
+            list.EnsureProperties(l => l.NoCrawl);
+            if (list.NoCrawl)
+            {
+                Log.Warning(Constants.LOGGING_SOURCE, CoreResources.ListExtensions_SkipNoCrawlLists);
+                return;
+            }
+
             const string reIndexKey = "vti_searchversion";
             var searchversion = 0;
 
@@ -1370,7 +1377,14 @@ namespace Microsoft.SharePoint.Client
             {
                 searchversion = (int)list.GetPropertyBagValueInt(reIndexKey, 0);
             }
-            list.SetPropertyBagValue(reIndexKey, searchversion + 1);
+            try
+            {
+                list.SetPropertyBagValue(reIndexKey, searchversion + 1);
+            }
+            catch (ServerUnauthorizedAccessException)
+            {
+                Log.Warning(Constants.LOGGING_SOURCE, CoreResources.ListExtensions_SkipNoCrawlLists);
+            }
         }
     }
 }
